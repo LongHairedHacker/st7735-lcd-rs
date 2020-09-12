@@ -156,13 +156,13 @@ where
         self.write_data(&value.to_be_bytes())
     }
 
-    fn write_words_buffered(&mut self, words: impl IntoIterator<Item = u16>) -> Result<(), ()>{
+    fn write_words_buffered(&mut self, words: impl IntoIterator<Item = u16>) -> Result<(), ()> {
         let mut buffer = [0; 32];
         let mut index = 0;
         for word in words {
             let as_bytes = word.to_be_bytes();
             buffer[index] = as_bytes[0];
-            buffer[index+1] = as_bytes[1];
+            buffer[index + 1] = as_bytes[1];
             index += 2;
             if index >= buffer.len() {
                 self.write_data(&buffer);
@@ -219,7 +219,10 @@ where
         }
         Ok(())
     }
-    pub fn write_pixels_buffered<P: IntoIterator<Item = u16>>(&mut self, colors: P) -> Result<(), ()> {
+    pub fn write_pixels_buffered<P: IntoIterator<Item = u16>>(
+        &mut self,
+        colors: P,
+    ) -> Result<(), ()> {
         self.write_command(Instruction::RAMWR, None)?;
         self.start_data()?;
         self.write_words_buffered(colors)
@@ -249,6 +252,11 @@ where
         self.set_address_window(sx, sy, ex, ey)?;
         self.write_pixels_buffered(colors)
     }
+
+    /// Moves the peripherials out of the driver instance. Consumes the driver.
+    pub fn release(self) -> (SPI, DC, RST) {
+        (self.spi, self.dc, self.rst)
+    }
 }
 
 #[cfg(feature = "graphics")]
@@ -256,14 +264,14 @@ extern crate embedded_graphics;
 #[cfg(feature = "graphics")]
 use self::embedded_graphics::{
     drawable::Pixel,
+    image::Image,
     pixelcolor::{
         raw::{RawData, RawU16},
         Rgb565,
     },
-    primitives::Rectangle,
-    style::{Styled, PrimitiveStyle},
-    image::Image,
     prelude::*,
+    primitives::Rectangle,
+    style::{PrimitiveStyle, Styled},
     DrawTarget,
 };
 
@@ -283,11 +291,11 @@ where
 
     fn draw_rectangle(
         &mut self,
-        item: &Styled<Rectangle, PrimitiveStyle<Rgb565>>
+        item: &Styled<Rectangle, PrimitiveStyle<Rgb565>>,
     ) -> Result<(), Self::Error> {
         let shape = item.primitive;
         let rect_width = shape.bottom_right.x - item.primitive.top_left.x + 1;
-        let rect_height = shape.bottom_right.y - item.primitive.top_left.y +1;
+        let rect_height = shape.bottom_right.y - item.primitive.top_left.y + 1;
         let rect_size = rect_width * rect_height;
 
         match (item.style.fill_color, item.style.stroke_color) {
@@ -301,19 +309,18 @@ where
                     shape.bottom_right.y as u16,
                     iter,
                 )
-            },
+            }
             (Some(fill), Some(stroke)) => {
                 let fill_color = RawU16::from(fill).into_inner();
                 let stroke_color = RawU16::from(stroke).into_inner();
                 let iter = (0..rect_size).map(move |i| {
                     if i % rect_width <= item.style.stroke_width as i32
-                    || i % rect_width >= rect_width - item.style.stroke_width as i32
-                    || i <= item.style.stroke_width as i32 * rect_width
-                    || i >= (rect_height - item.style.stroke_width as i32) * rect_width
+                        || i % rect_width >= rect_width - item.style.stroke_width as i32
+                        || i <= item.style.stroke_width as i32 * rect_width
+                        || i >= (rect_height - item.style.stroke_width as i32) * rect_width
                     {
                         stroke_color
-                    }
-                    else {
+                    } else {
                         fill_color
                     }
                 });
@@ -324,21 +331,14 @@ where
                     shape.bottom_right.y as u16,
                     iter,
                 )
-            },
+            }
             // TODO: Draw edges as subrectangles
-            (None, Some(_)) => {
-                self.draw_iter(item)
-            }
-            (None, None) => {
-                self.draw_iter(item)
-            }
+            (None, Some(_)) => self.draw_iter(item),
+            (None, None) => self.draw_iter(item),
         }
     }
 
-    fn draw_image<'a, 'b, I>(
-        &mut self,
-        item: &'a Image<'b, I, Rgb565>
-    ) -> Result<(), Self::Error>
+    fn draw_image<'a, 'b, I>(&mut self, item: &'a Image<'b, I, Rgb565>) -> Result<(), Self::Error>
     where
         &'b I: IntoPixelIter<Rgb565>,
         I: ImageDimensions,
@@ -352,8 +352,8 @@ where
         self.set_pixels_buffered(
             sx,
             sy,
-            ex-1,
-            ey-1,
+            ex - 1,
+            ey - 1,
             item.into_iter().map(|p| RawU16::from(p.1).into_inner()),
         )
     }
